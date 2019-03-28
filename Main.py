@@ -140,6 +140,7 @@ def runProcedure(paras,data_train,label_train,data_test,label_test,random_batch=
     print('Training Phase')
     best_model=train(data_train,label_train,data_train,label_train,paras['num_epoch'],paras['batch_size'],
                      paras['learning_rate'],model,loss_function,optimizer,random_batch,batch_test)
+    torch.save(best_model, paras['model_type'])
     print('Testing Phase')
     if not batch_test:
         acc=test(data_test,label_test,best_model)
