@@ -22,7 +22,7 @@ def preprocessing():
     data['VIX']=data_vix['Close']/15
     
     # Normalized Volume
-    data['Volume_n']=data['Volume']/data['Volume'].rolling(w_200).mean()
+    data['Volume_n']=(data['Volume']/data['Volume'].rolling(w_200).mean()-1)*2
     
     # Simple Moving Averages
     data['SMA5']=data['Close'].rolling(w_5).mean()
@@ -31,23 +31,28 @@ def preprocessing():
     data['SMA200']=data['Close'].rolling(w_200).mean()
     
     # Normalized Prices
-    Open_n,High_n,Low_n,Close_n=([[None for j in range(w_200)] for i in range(N)],)*4
+    Open_n=[[None for j in range(w_200)] for i in range(N)]
+    High_n=[[None for j in range(w_200)] for i in range(N)]
+    Low_n=[[None for j in range(w_200)] for i in range(N)]
+    Close_n=[[None for j in range(w_200)] for i in range(N)]
     for d in range(w_200-1,N):
-        Open_n[d]=list(data['Open'][d+1-w_200:d+1]/data['Close'][d])
-        High_n[d]=list(data['High'][d+1-w_200:d+1]/data['Close'][d])
-        Low_n[d]=list(data['Low'][d+1-w_200:d+1]/data['Close'][d])
-        Close_n[d]=list(data['Close'][d+1-w_200:d+1]/data['Close'][d])
+        Open_n[d]=list((data['Open'][d+1-w_200:d+1]/data['Close'][d]-1)*10)
+        High_n[d]=list((data['High'][d+1-w_200:d+1]/data['Close'][d]-1)*10)
+        Low_n[d]=list((data['Low'][d+1-w_200:d+1]/data['Close'][d]-1)*10)
+        Close_n[d]=list((data['Close'][d+1-w_200:d+1]/data['Close'][d]-1)*10)
     data['Open_n'],data['High_n'],data['Low_n'],data['Close_n']=\
         pd.Series(Open_n),pd.Series(High_n),pd.Series(Low_n),pd.Series(Close_n)
     
     # Normalized Simple Moving Averages
-    SMA5_n,SMA10_n,SMA50_n,SMA200_n=\
-        ([[None for j in range(w_200)] for i in range(N)],)*4
+    SMA5_n=[[None for j in range(w_200)] for i in range(N)]
+    SMA10_n=[[None for j in range(w_200)] for i in range(N)]
+    SMA50_n=[[None for j in range(w_200)] for i in range(N)]
+    SMA200_n=[[None for j in range(w_200)] for i in range(N)]
     for d in range(w_200-1,N):
-        SMA5_n[d]=list(data['SMA5'][d+1-w_200:d+1]/data['Close'][d])
-        SMA10_n[d]=list(data['SMA10'][d+1-w_200:d+1]/data['Close'][d])
-        SMA50_n[d]=list(data['SMA50'][d+1-w_200:d+1]/data['Close'][d])
-        SMA200_n[d]=list(data['SMA200'][d+1-w_200:d+1]/data['Close'][d])
+        SMA5_n[d]=list((data['SMA5'][d+1-w_200:d+1]/data['Close'][d]-1)*10)
+        SMA10_n[d]=list((data['SMA10'][d+1-w_200:d+1]/data['Close'][d]-1)*10)
+        SMA50_n[d]=list((data['SMA50'][d+1-w_200:d+1]/data['Close'][d]-1)*10)
+        SMA200_n[d]=list((data['SMA200'][d+1-w_200:d+1]/data['Close'][d]-1)*10)
     data['SMA5_n'],data['SMA10_n'],data['SMA50_n'],data['SMA200_n']=\
         pd.Series(SMA5_n),pd.Series(SMA10_n),pd.Series(SMA50_n),pd.Series(SMA200_n)
     
