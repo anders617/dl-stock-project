@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 import pandas as pd
+import os
 
 class DNN(nn.Module):
     def __init__(self,feat_dim,hidden_dim,batch_size,num_class,p_drop,device):
@@ -168,8 +169,13 @@ def runProcedure(paras,data_train,label_train,data_val,label_val,data_test,label
     loss_function=nn.CrossEntropyLoss()
     optimizer=torch.optim.Adam(model.parameters(),lr=paras['learning_sche'][0][1],eps=1e-08)
     print('Training Phase')
-    best_model=train(data_train,label_train,data_val,label_val,paras['num_epoch'],paras['batch_size'],paras['num_class'],
-                     paras['learning_sche'],model,loss_function,optimizer,device,random_batch,batch_test)
+    if os.path.exists('best_model_state'):
+        model.load_state_dict(torch.load('best_model_state'))
+        best_model = model
+    else:
+        best_model=train(data_train,label_train,data_val,label_val,paras['num_epoch'],paras['batch_size'],paras['num_class'],
+                        paras['learning_sche'],model,loss_function,optimizer,device,random_batch,batch_test)
+        torch.save(best_model.state_dict(), 'best_model_state')
     print('Testing Phase')
     if not batch_test:
         acc=test(data_test,label_test,best_model,device,paras['num_class'])
