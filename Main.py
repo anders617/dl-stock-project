@@ -43,6 +43,7 @@ class RNN(nn.Module):
         return hidden_init
 
     def forward(self,data_batch):
+        self.rnn.flatten_parameters()
         _,final_hidden=self.rnn(data_batch,self.hidden)
         return self.fc(final_hidden[0])
 
@@ -67,6 +68,7 @@ class LSTM(nn.Module):
         return hidden_init
 
     def forward(self,data_batch):
+        self.lstm.flatten_parameters()
         _,(final_hidden,_)=self.lstm(data_batch,self.hidden)
         return self.fc(final_hidden[0])
 
@@ -96,23 +98,20 @@ def predict(data_pred,model,device,batch_size=None):
 def test(data_test,label_test,model,device,num_class,batch_size=None):
     with torch.no_grad():
         label_pred_numpy=predict(data_test,model,device,batch_size)
-    #print(np.sum(label_pred_numpy==1)/label_pred_numpy.size)
     print('   Prediction label   --- ',end='')
     for c in range(num_class):
         if c<num_class-1:
             print(str(c)+':'+str(np.sum(label_pred_numpy==c)/label_pred_numpy.size)+', ',end='')
         else:
             print(str(c)+':'+str(np.sum(label_pred_numpy==c)/label_pred_numpy.size))
+    if device.type=='cuda':
+        label_test=label_test.cpu()
     print('   True testing label --- ',end='')
     for c in range(num_class):
         if c<num_class-1:
             print(str(c)+':'+str(np.sum(np.array(label_test)==c)/np.array(label_test).size)+', ',end='')
         else:
             print(str(c)+':'+str(np.sum(np.array(label_test)==c)/np.array(label_test).size))
-    #print('Prediction up ratio =',label_pred_numpy.mean())
-    #print('True up ratio =',label_test.float().mean().item())
-    if device.type=='cuda':
-        label_test=label_test.cpu()
     return np.mean(label_pred_numpy==np.array(label_test))
 
 def train(data_train,label_train,data_val,label_val,num_epoch,batch_size,num_class,
@@ -200,19 +199,25 @@ def get_data(data_dataframe,window,gap,spec,squeeze,device):
         data=data.view(N,window*feat_dim)
     return data[window-1:-gap],feat_dim
 
+def get_data_new(data_dataframe,window,gap,spec,squeeze,device):
+    N=data_dataframe['Date'].size
+    feat_dim=len(spec)
+    data=torch.zeros(N,window,feat_dim,dtype=torch.float,device=device)
+    for i,k in enumerate(spec):
+        if spec[k]==None:
+            data[:,window-1,i]=torch.from_numpy(data_dataframe[k].values).to(device)
+            for w in range(1,window):
+                data[w:,window-1-w,i]=data[:N-w,window-1,i]
+        else:
+            data[:,:,i]=torch.FloatTensor([p[-window:] for p in data_dataframe[k]]).to(device)
+    if squeeze:
+        data=data.view(N,window*feat_dim)
+    return data[window-1:-gap],feat_dim
+
 def get_label(data_dataframe,window,gap,device,class_spec):
-    '''
-    label=torch.from_numpy(np.array(data_dataframe['Diff'].values>0,dtype=int))
-    label=label.type(torch.LongTensor)
-    label=label.to(device)
-    return label[window-1+gap:]
-    '''
-    #change=np.array((data_dataframe['Close'][window-1+gap:]/data_dataframe['Close'][window-1:-gap]-1)*100)
     change=data_dataframe['Close'].pct_change(periods=gap).values*100
     change=change[window-1+gap:]
     label=torch.zeros(len(change),dtype=torch.long,device=device)
-    #print(label.shape)
-    #print(len(class_spec))
     for c in range(len(class_spec)+1):
         if c==0:
             mask=(change<class_spec[c])
@@ -221,36 +226,39 @@ def get_label(data_dataframe,window,gap,device,class_spec):
         else:
             mask=(change>=class_spec[c-1])*(change<class_spec[c])
         idx=np.nonzero(mask)
-        #print(idx)
-        #print(label[idx].shape)
         label[idx]=c
-        #mask=torch.ByteTensor(np.uint8(mask))
-        #print(label.masked_select(mask).shape)
-        #label.masked_select(mask)=c
-    #print(label)
     return label
 
 def simplemap_agent(data_dataframe,start,end,interval,label_pred,gap,delta,strategy):
     change=data_dataframe['Close'].pct_change(periods=gap).values
-    #print(change[-15:]*100)
     change=change[start+gap:end+gap:interval]
-    #print(label_pred)
-    #print(change*100)
     S=100
     last_action=0
     for i in range(len(change)):
-        #print(strategy[label_pred[i]])
         S += S*strategy[label_pred[i]]*change[i]
-        #print('a=',strategy[label_pred[i]],'c=',change[i])
-        #print('S='+str(S))
         if i>0 and not last_action==strategy[label_pred[i]]:
             S *= delta
         last_action=strategy[label_pred[i]]
     print('Simple map agent gains '+str(S-100)+'% during the testing period')
     print('S&P gains '+str((data_dataframe['Close'][end+gap]/data_dataframe['Close'][start]-1)*100)+'% during the same period')
 
+def train_validate_test_split(df,df_labels,train_percent=.6,validate_percent=.2,seed=None):
+    np.random.seed(seed)
+    perm=np.random.permutation(np.arange(0,df.shape[0],1))
+    m=df.shape[0]
+    train_end=int(train_percent*m)
+    validate_end=int(validate_percent*m)+train_end
+    train=df[perm[:train_end]]
+    train_label=df_labels[perm[:train_end]]
+    validate=df[perm[train_end:validate_end]]
+    val_label=df_labels[perm[train_end:validate_end]]
+    test=df[perm[validate_end:]]
+    test_label=df_labels[perm[validate_end:]]
+    return train,train_label,validate,val_label,test,test_label
+
 def main():
     data_dataframe=pd.read_pickle('GSPC_preprocess.pkl')
+    '''
     spec={'Open_n':[-d for d in range(1,30)]+[-d for d in range(30,90,5)],
           'High_n':[-d for d in range(1,30)]+[-d for d in range(30,90,5)],
           'Low_n':[-d for d in range(1,30)]+[-d for d in range(30,90,5)],
@@ -258,6 +266,10 @@ def main():
           'SMA5_n':[-1],'SMA10_n':[-1],'SMA50_n':[-1],'SMA200_n':[-1],
           'Volume_n':None,'RSI14':None
           }
+    '''
+    spec={'Open_n':'List','High_n':'List','Low_n':'List','Close_n':'List',
+          'SMA5_n':'List','SMA10_n':'List','SMA50_n':'List','SMA200_n':'List',
+          'Volume_n':None,'RSI14':None}
     # 2 classes setting
     ''
     class_spec=[0]
@@ -273,44 +285,61 @@ def main():
     class_spec=[-0.85,-0.35,0.35,0.85]
     strategy=[-2,-1,0,1,2]
     '''
-    paras={'window':10,
+    paras={'window':30,
            'gap':1,
            'model_type':'LSTM',
-           'learning_sche':[(0,0.001),(10,0.0005)],
+           'learning_sche':[(0,0.0001),(10,0.0001),(20,0.0001)],
            'batch_size':20,
-           'num_epoch':2,
-           'hidden_dim':32,
+           'num_epoch':30,
+           'hidden_dim':128,
            'num_class':len(class_spec)+1,
            'p_drop':0.05,
            'delta':0.999
-           }  
+           }
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    for model_type in ['DNN']:
+    for model_type in ['LSTM']:
         print('******************** model_type:',model_type,'********************')
         paras['model_type']=model_type
         if paras['model_type']=='DNN':
-            data,paras['feat_dim']=get_data(data_dataframe,paras['window'],paras['gap'],spec,True,device)
+            data,paras['feat_dim']=get_data_new(data_dataframe,paras['window'],paras['gap'],spec,True,device)
             paras['feat_dim'] *= paras['window']
         else:
-            data,paras['feat_dim']=get_data(data_dataframe,paras['window'],paras['gap'],spec,False,device)
+            data,paras['feat_dim']=get_data_new(data_dataframe,paras['window'],paras['gap'],spec,False,device)
         label=get_label(data_dataframe,paras['window'],paras['gap'],device,class_spec)
         N=label.shape[0]
+        '''
+        print(data[N-2])
+        print(data_dataframe['Open_n'][4828][-15:])
+        print(data_dataframe['Close_n'][4828][-15:])
+        print(data_dataframe['Volume_n'][-15:])
+        '''
 
-        data_train=data[N-400:]
-        label_train=label[N-400:]
-        data_val=data[N-400:]
-        label_val=label[N-400:]
+        '''
+        data_train=data[:N-400]
+        label_train=label[:N-400]
+        data_val=data[:N-400]
+        label_val=label[:N-400]
         data_test=data[N-400:]
         label_test=label[N-400:]
+        '''
+        ''
+        data_train,label_train,data_val,label_val,data_test,label_test=train_validate_test_split(data[:N-400],label[:N-400],0.8,0.1,498)
 
         model=runProcedure(paras,data_train,label_train,data_val,label_val,data_test,label_test,device,random_batch=False,batch_test=True)
         model.eval()
         label_pred=predict(data_test,model,device,paras['batch_size'])
+
+        data_test=data[N-400:]
+        label_test=label[N-400:]
         print('Trained model')
         simplemap_agent(data_dataframe[paras['window']-1:],N-400,N,1,label_pred,paras['gap'],paras['delta'],strategy)
         print('Omniscient agent')
-        simplemap_agent(data_dataframe[paras['window']-1:],N-400,N,1,np.array(label_test),paras['gap'],paras['delta'],strategy)
+        if device.type=='cpu':
+            simplemap_agent(data_dataframe[paras['window']-1:],N-400,N,1,np.array(label_test),paras['gap'],paras['delta'],strategy)
+        else:
+            simplemap_agent(data_dataframe[paras['window']-1:],N-400,N,1,np.array(label_test.cpu()),paras['gap'],paras['delta'],strategy)
+        ''
         
 
 if __name__=='__main__':
