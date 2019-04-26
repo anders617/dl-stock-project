@@ -65,19 +65,38 @@ def candle_stick(data, dates):
 
 def nnet_comparison(data):
 	'''
-		args: data: list of lists: [[LSTM], [RNN], [DNN]]
-			where each row is a class with a list of lstm, rnn, and dnn values
+		args: data: list of lists: [[[LSTM], [RNN], [DNN]]]
+			where each row is a class with a list of lstm, rnn, and dnn values: [[LSTM], [RNN], [DNN]]
 	'''
 	fig, axs = plt.subplots()
 	
 	all_data = []
-	for class_data in data:
+	i = 1
+	xtick_num = []
+	xtick_labels = []
+	for c, class_data in enumerate(data):
+		if c == 0:
+			class_num = 2
+		elif c == 1:
+			class_num = 3
+		else:
+			class_num = 5
 		
-		for net_data in class_data:
+		for j, net_data in enumerate(class_data):
 			all_data.append(net_data)
+			xtick_num.append(i)
+			i += 1
+			if j == 0:
+				xtick_labels.append("LSTM (Class {})".format(class_num))
+			elif j == 1:
+				xtick_labels.append("RNN (Class {})".format(class_num))
+			else:
+				xtick_labels.append("DNN (Class {})".format(class_num))
 
 	plt.boxplot(all_data, 0, '')
-	
+	plt.xticks(xtick_num,xtick_labels)
+	plt.title("Neural Network Performance")
+	plt.ylabel("Test Accuracy")
 	plt.show()
 
 def main():
@@ -90,7 +109,7 @@ def main():
 	# dates = data_dataframe["Date"].values
 	# candle_stick(data, dates)
 
-	data = [[[3,2,1], [1,2,5], [5,2,1]]]
+	data = [[[3,2,1], [1,2,5], [5,2,1]], [[10,2,1], [1,5,5], [4,2,1]]]
 	nnet_comparison(data)
 
 
