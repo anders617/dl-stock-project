@@ -76,16 +76,7 @@ def nnet_comparison(data):
 		for net_data in class_data:
 			all_data.append(net_data)
 
-	bplot = plt.boxplot(all_data, 0, '')
-	
-	for box in bplot['boxes']:
-	    # change outline color
-	    box.set(color='red', linewidth=2)
-	    # change fill color
-	    box.set(facecolor = 'green' )
-	    # change hatch
-	    box.set(hatch = '/')
-	
+	plt.boxplot(all_data, 0, '')
 	
 	plt.show()
 
