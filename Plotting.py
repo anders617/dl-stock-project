@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 
-def candle_stick(data, dates):
+def candle_stick(data, dates, predictions):
 	'''
 		args: 
 		data (list): list of close prices of sp500 (or S values)
@@ -17,6 +17,7 @@ def candle_stick(data, dates):
 	
 	fig, ax = plt.subplots()
 
+	colors = []
 	quotes = {}
 	quotes['open'] = []
 	quotes['high'] = []
@@ -39,8 +40,14 @@ def candle_stick(data, dates):
 		quotes['close'].append(value / initial_price)
 		quotes['time'].append(dates[i])
 
+		# Set color
+		if predictions[i] >= 1:
+			colors.append("green")
+		else:
+			colors.append("red")
 
-	candlestick2_ohlc(ax,quotes['open'],quotes['high'],quotes['low'],quotes['close'],width=0.6)
+
+	lines, rectangles = candlestick2_ohlc(ax,quotes['open'],quotes['high'],quotes['low'],quotes['close'],width=0.6)
 
 	# This sets how many ticks there are in the plot
 	ax.xaxis.set_major_locator(ticker.MaxNLocator(10))
@@ -56,6 +63,9 @@ def candle_stick(data, dates):
 
 
 	ax.xaxis.set_major_formatter(ticker.FuncFormatter(mydate))
+
+	lines.set_color(colors)
+	rectangles.set_color(colors)
 
 	fig.autofmt_xdate()
 	fig.tight_layout()
@@ -102,15 +112,17 @@ def nnet_comparison(data):
 def main():
 	print("Testing plotting")
 	
-	# data_dataframe=pd.read_pickle('GSPC_preprocess.pkl')
-	# N = data_dataframe["Date"].size
+	data_dataframe=pd.read_pickle('GSPC_preprocess.pkl')
+	N = data_dataframe["Date"].size
 
-	# data = data_dataframe["Close"].values
-	# dates = data_dataframe["Date"].values
-	# candle_stick(data, dates)
+	data = data_dataframe["Close"].values[4800:]
+	dates = data_dataframe["Date"].values[4800:]
+	predictions = np.random.randint(2, size=data.shape[0])
+	#print(predictions.shape, dates.shape)
+	candle_stick(data, dates, predictions)
 
-	data = [[[3,2,1], [1,2,5], [5,2,1]], [[10,2,1], [1,5,5], [4,2,1]]]
-	nnet_comparison(data)
+	# data = [[[3,2,1], [1,2,5], [5,2,1]], [[10,2,1], [1,5,5], [4,2,1]]]
+	# nnet_comparison(data)
 
 
 
